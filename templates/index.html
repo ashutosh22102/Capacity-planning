@@ -2,116 +2,71 @@
 <html>
 <head>
     <title>Building Used Ports Prediction Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function showStep(step) {
-            document.getElementById('step1').style.display = step === 1 ? 'block' : 'none';
-            document.getElementById('step2').style.display = step === 2 ? 'block' : 'none';
-            document.getElementById('step3').style.display = step === 3 ? 'block' : 'none';
-            document.getElementById('step4').style.display = step === 4 ? 'block' : 'none';
-            document.getElementById('results').style.display = step === 5 ? 'block' : 'none';
+    <style>
+        /* Loader styles */
+        #loader {
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #3498db;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 1000;
         }
 
-        function nextStep(current) {
-            document.getElementById('current_step').value = current + 1;
-            showStep(current + 1);
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
         }
 
-        function previousStep(current) {
-            document.getElementById('current_step').value = current - 1;
-            showStep(current - 1);
+        /* Overlay to dim the background when loading */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 999;
         }
-
-        window.onload = function() {
-            const currentStep = parseInt(document.getElementById('current_step').value);
-            showStep(currentStep);
-        }
-    </script>
+    </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center mb-4">Building Used Ports Prediction Dashboard</h1>
+    <div id="overlay"></div>
+    <div id="loader"></div>
+    <h1>Building Used Ports Prediction Dashboard</h1>
+    <form method="post">
+        <label for="building_id">Select Building ID:</label>
+        <select name="building_id" id="building_id">
+            {% for id in building_ids %}
+                <option value="{{ id }}">{{ id }}</option>
+            {% endfor %}
+        </select>
+        <br><br>
+        <label for="future_days">Number of Future Days to Predict:</label>
+        <input type="number" id="future_days" name="future_days" min="1" max="365" value="180">
+        <br><br>
+        <button type="submit">Generate Graph</button>
+    </form>
+    <br>
+    {% if graph %}
+        {{ graph | safe }}
+    {% endif %}
+    <script>
+        const form = document.querySelector('form');
+        const loader = document.getElementById('loader');
+        const overlay = document.getElementById('overlay');
 
-        {% if error %}
-            <div class="alert alert-danger" role="alert">
-                {{ error }}
-            </div>
-        {% endif %}
-
-        <form method="post" enctype="multipart/form-data">
-            <input type="hidden" id="current_step" name="current_step" value="{{ current_step }}">
-
-            <!-- Step 1: Upload Dataset -->
-            <div id="step1">
-                <div class="mb-3">
-                    <label for="file" class="form-label">Upload Dataset:</label>
-                    <input class="form-control" type="file" name="file" id="file" accept=".csv" required>
-                </div>
-                <button type="button" class="btn btn-primary" onclick="nextStep(1)">Next</button>
-            </div>
-
-            <!-- Step 2: Select Building ID -->
-            <div id="step2" style="display:none;">
-                <div class="mb-3">
-                    <label for="building_id" class="form-label">Select Building ID:</label>
-                    <select class="form-select" name="building_id" id="building_id" required>
-                        {% if building_ids %}
-                            <option value="" disabled selected>Select a Building ID</option>
-                            {% for id in building_ids %}
-                                <option value="{{ id }}">{{ id }}</option>
-                            {% endfor %}
-                        {% else %}
-                            <option value="" disabled selected>No Building IDs Available</option>
-                        {% endif %}
-                    </select>
-                </div>
-                <button type="button" class="btn btn-secondary" onclick="previousStep(2)">Back</button>
-                <button type="button" class="btn btn-primary" onclick="nextStep(2)">Next</button>
-            </div>
-
-            <!-- Step 3: Select Date Range -->
-            <div id="step3" style="display:none;">
-                <div class="mb-3">
-                    <label for="start_date" class="form-label">Start Date:</label>
-                    <input type="date" class="form-control" name="start_date" id="start_date" required>
-                </div>
-                <div class="mb-3">
-                    <label for="end_date" class="form-label">End Date:</label>
-                    <input type="date" class="form-control" name="end_date" id="end_date" required>
-                </div>
-                <button type="button" class="btn btn-secondary" onclick="previousStep(3)">Back</button>
-                <button type="button" class="btn btn-primary" onclick="nextStep(3)">Next</button>
-            </div>
-
-            <!-- Step 4: Predict Future Usage -->
-            <div id="step4" style="display:none;">
-                <div class="mb-3">
-                    <label for="future_days" class="form-label">Number of Future Days to Predict:</label>
-                    <input type="number" class="form-control" name="future_days" id="future_days" min="1" max="365" value="180" required>
-                </div>
-                <button type="button" class="btn btn-secondary" onclick="previousStep(4)">Back</button>
-                <button type="submit" class="btn btn-success">Predict</button>
-            </div>
-        </form>
-
-        <!-- Step 5: Display Results -->
-        <div id="results" style="display:none;">
-            {% if plot %}
-                <div class="mt-5">
-                    <h2>Used Ports Over Time</h2>
-                    <div>{{ plot|safe }}</div>
-                </div>
-
-                {% if future_df %}
-                    <div class="mt-3">
-                        <form method="post" action="{{ url_for('download') }}">
-                            <button type="submit" class="btn btn-primary">Download Predictions</button>
-                        </form>
-                    </div>
-                {% endif %}
-            {% endif %}
-        </div>
-    </div>
+        form.addEventListener('submit', () => {
+            loader.style.display = 'block';
+            overlay.style.display = 'block';
+        });
+    </script>
 </body>
 </html>
